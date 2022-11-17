@@ -43,9 +43,9 @@ class HierarchicalNetwork:
             print("Seen so far: %s samples" % ((step + 1) * batch_size))
             
     # Instantiate an optimizer.
-    optimizer = keras.optimizers.SGD(learning_rate=1e-3)
+    # optimizer = keras.optimizers.SGD(learning_rate=1e-3)
     # Instantiate a loss function.
-    loss_fn = keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+    # loss_fn = keras.losses.SparseCategoricalCrossentropy(from_logits=True)
         
     def eval(self):
         return
