@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
@@ -9,30 +11,37 @@ class HierarchicalNetwork:
         # Instantiate an optimizer.
         optimizer = keras.optimizers.SGD(learning_rate=self.lambda1)
         # Instantiate a loss function.
-        loss_fn = keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+#         loss_fn = keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+        loss_fn = lambda ey, y: tf.math.square(tf.math.subtract(ey,y))
 
         train_dataset = tf.data.Dataset.from_tensor_slices((x, y))
         train_dataset = train_dataset.shuffle(buffer_size=1024).batch(batch_size)
         
         for step, (x_batch_train, y_batch_train) in enumerate(train_dataset):
  
-            with tf.GradientTape() as tape:
+            
                 
-                for s in x_batch_train:
-                    model = self.f(s)
+#                 tf.compat.v1.disable_eager_execution()
+                
+#                 models = tf.map_fn(lambda x:self.f(x),x_batch_train)
+            for s in x_batch_train:
+                with tf.GradientTape() as tape:
+                    tape.watch(self.w)
+#                     print(s)
+                    predict = self.f(s)
          
-                    logits = model(s, training=True)  # Logits for this minibatch
+#                     logits = model(s, training=True)  # Logits for this minibatch
          
                     # Compute the loss value for this minibatch.
-                    loss_value = loss_fn(y_batch_train, logits)
+                    loss_value = loss_fn(y_batch_train, predict)
 
-            # Use the gradient tape to automatically retrieve
-            # the gradients of the trainable variables with respect to the loss.
-            grads = tape.gradient(loss_value, self.w)
+                    # Use the gradient tape to automatically retrieve
+                    # the gradients of the trainable variables with respect to the loss.
+                    grads = tape.gradient(loss_value, self.w)
     
-            # Run one step of gradient descent by updating
-            # the value of the variables to minimize the loss.
-            optimizer.apply_gradients(zip(grads, self.w))
+                    # Run one step of gradient descent by updating
+                    # the value of the variables to minimize the loss.
+                    optimizer.apply_gradients([(grads, self.w)])
 
         # Log every 200 batches.
         if step % 100 == 0:
@@ -43,23 +52,26 @@ class HierarchicalNetwork:
             print("Seen so far: %s samples" % ((step + 1) * batch_size))
             
     # Instantiate an optimizer.
-    # optimizer = keras.optimizers.SGD(learning_rate=1e-3)
+    optimizer = keras.optimizers.SGD(learning_rate=1e-3)
     # Instantiate a loss function.
-    # loss_fn = keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+    loss_fn = keras.losses.SparseCategoricalCrossentropy(from_logits=True)
         
     def eval(self):
         return
-        
-    def f(self, s):
+    
+    def f(self, idx):
+
+        s = self.getSentenceById(idx)
+#         print(s)
         h = self.getHiera(s)
         outputs = self.f_rec(h,s)
-        return keras.Model(outputs=outputs)
+        return outputs
     
     def f_rec(self,h,s):
         key = h[0]
         inputs = h[1]
         if not isinstance(h[1], list):
-            return self.hnet(1,key)
+            return self.hnet(1,[key,inputs],s)
         l = []
         for a in inputs:
             l.append(self.f_rec(a,s))
@@ -68,36 +80,41 @@ class HierarchicalNetwork:
     
     #activation function
     def act(self,l):
-        return sum(l*self.lambda2)
+        return tf.math.reduce_sum(tf.math.scalar_mul(self.lambda2,tf.Variable(l)))
     
     def hnet(self,l,key,s):
         key_emb = s['tokens'][key[1]]['embedding']
         cents = self.centroids[key[0]]
         nst_emb = self.nearest_emb(key_emb,cents)
-        x = tf.math.multiply(nst_emb,self.w[self.wordIdxMap[key[0]]])
+        x = tf.math.reduce_sum(tf.math.multiply(nst_emb,self.w[self.wordIdxMap[key[0]]]))
         return x
         
     def nearest_emb(self,key_emb,cents):
-        dis = tf.norm(key_emb-cents[0], ord='euclidean')
-        idx = 0
+        dis = tf.norm(tf.math.subtract(key_emb,cents[-1]), ord='euclidean')
+        idx = -1
         for i in range(len(cents)-1):
-            new_dis = tf.norm(key_emb-cents[i], ord='euclidean')
+            new_dis = tf.norm(tf.math.subtract(key_emb,cents[i]), ord='euclidean')
             if new_dis < dis:
                 dis = new_dis
                 idx = i;
-        return cents(idx)
+        return cents[idx]
     
     def getHiera(self,s):
         dic = hashlib.md5(s['text'].encode('utf-8')).hexdigest()
         return self.hiera[dic]
     
-    def __init__(self, centroids,wordIdxMap,IdxWordMap,hiera):
+    def getSentenceById(self, idx):
+        return self.idxtos[idx.numpy()]
+    
+    
+    def __init__(self, centroids,wordIdxMap,IdxWordMap,hiera,idxtos):
         self.centroids = centroids
         self.wordIdxMap = wordIdxMap
         self.IdxWordMap = IdxWordMap
         self.hiera = hiera
+        self.idxtos = idxtos
 #         print(len(self.centroids),len(list(self.centroids.values())[0][0]))
-        self.w = tf.random.normal([len(self.centroids),len(list(self.centroids.values())[0][0])])
+        self.w = tf.Variable(tf.random.normal([len(self.centroids),len(list(self.centroids.values())[0][0])]))
         
         self.lambda1 = 0.0005
         self.lambda2 = 0.1

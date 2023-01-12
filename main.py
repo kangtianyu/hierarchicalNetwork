@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+
 # import tensorflow as tf
 import pickle
 import os
@@ -29,7 +30,6 @@ def prt_hiera(li):
     res, res_width = prt_hiera_rec(li,0)
     for i in res:
         print(i)
-
 
 def prt_hiera_rec(li, deep):
     if not isinstance(li[1], list):
@@ -75,9 +75,11 @@ def create_cv_batches(s, cv_num = 10, randomize = False):
         x_test = []
         for j in range(cv_num):
             if i==j:
-                x_test.extend(samples[n*j//cv_num:n*(j+1)//cv_num])
+                x_test.extend(range(n*j//cv_num,n*(j+1)//cv_num))
             else:
-                x_train.extend(samples[n*j//cv_num:n*(j+1)//cv_num])
+                x_train.extend(range(n*j//cv_num,n*(j+1)//cv_num))
+    with open('log.txt', 'w') as f:
+        print(x_train, x_test, file=f)
     yield (x_train,x_test)
 
 def main():
@@ -94,56 +96,32 @@ def main():
     hiera = {}
     wordIdxMap = {}
     IdxWordMap = {}
+    idxtos = {}
     idx = 0
+    idx2 = 0
     for sentence in parsing_embedding:
         dic = hashlib.md5(sentence['text'].encode('utf-8')).hexdigest()
         hiera[dic] = build_hiera(sentence)
+        idxtos[idx2] = sentence
+        idx2 = idx2 + 1
         for term in sentence['tokens']:
             if not term['text'] in wordIdxMap and not term['text'] in ['\n']:
                 wordIdxMap[term['text']] = idx
                 IdxWordMap[idx] = term['text']
                 idx = idx + 1
                 
-    model = HierarchicalNetwork(centroids,wordIdxMap,IdxWordMap,hiera)
-    for (x_train, x_valid) in create_cv_batches(parsing_embedding):
-        model.train(x_train, [1]*len(x_train))
+    model = HierarchicalNetwork(centroids,wordIdxMap,IdxWordMap,hiera,idxtos)
     
+    
+    
+#     for j in range(len(parsing_embedding)):
+#         parsing_embedding[j].pop('tokens')
+#         parsing_embedding[j].pop('root')
+#         for i in range(len(parsing_embedding[j]['tokens'])):    
+#             parsing_embedding[j]['tokens'][i].pop('embedding')
 
-#         val_acc = val_acc_metric.result()
-#         val_acc_metric.reset_states()
-#         print("Validation acc: %.4f" % (float(val_acc),))
-    
-                
-#     print(len(wordIdxMap))
-#     print('\n' in wordIdxMap)
-#     print(len(centroids.keys()))  # 6502
-#     print('\n' in centroids)
-    
-#     print(parsing_embedding[5]['text'] )
-#     print(parsing_embedding[0]['root'])
-#     print(len(parsing_embedding[0]['tokens']))
-#     print(parsing_embedding[5]['tokens'][2]['ancestors'])
-#     print(parsing_embedding[5]['tokens'][12]['ancestors'])
-#     prt_hiera(build_hiera(parsing_embedding[5]))
-    
-#     print(parsing_embedding[0].keys())  # dict_keys(['text', 'root', 'tokens']
-#     print(parsing_embedding[0]['text'])
-#     print(parsing_embedding[0]['root']) # ['is', 7]
-#     print(parsing_embedding[0]['tokens'])
-#     print(len(parsing_embedding[0]['tokens']))
-#     print(parsing_embedding[0]['tokens'][-1])
-#     print(parsing_embedding[0]['tokens'][7])
-#     print(parsing_embedding[0]['tokens'][2])
-#     
-#     print(len(centroids.keys()))  # 6502
-#     print(len(centroids['the']))
-#     print(centroids['the'])
-#     print(len(centroids['the']))
-#     print(len(centroids['the'][0]))  # 768
-    
-#     import collections
-#     counter = collections.Counter([len(centroids[k]) for k in centroids.keys()])
-#     print(counter) # Counter({1: 6242, 2: 250, 3: 10})
+    for (x_train, x_valid) in create_cv_batches(parsing_embedding):
+        model.train(x_train, [1.0]*len(x_train))
 
 if __name__ == '__main__':
     main()
