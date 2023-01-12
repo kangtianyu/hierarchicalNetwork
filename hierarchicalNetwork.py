@@ -11,53 +11,59 @@ class HierarchicalNetwork:
         # Instantiate an optimizer.
         optimizer = keras.optimizers.SGD(learning_rate=self.lambda1)
         # Instantiate a loss function.
-#         loss_fn = keras.losses.SparseCategoricalCrossentropy(from_logits=True)
-        loss_fn = lambda ey, y: tf.math.square(tf.math.subtract(ey,y))
+        loss_fn = keras.losses.MeanSquaredError()
+#         loss_fn = lambda ey, y: tf.math.square(tf.math.subtract(ey,y))
 
         train_dataset = tf.data.Dataset.from_tensor_slices((x, y))
         train_dataset = train_dataset.shuffle(buffer_size=1024).batch(batch_size)
         
-        for step, (x_batch_train, y_batch_train) in enumerate(train_dataset):
- 
-            
+        for epoch in range(100):
+            for step, (x_batch_train, y_batch_train) in enumerate(train_dataset):
+     
                 
-#                 tf.compat.v1.disable_eager_execution()
-                
-#                 models = tf.map_fn(lambda x:self.f(x),x_batch_train)
-            for s in x_batch_train:
+                    
+    #                 tf.compat.v1.disable_eager_execution()
+                    
+    #                 models = tf.map_fn(lambda x:self.f(x),x_batch_train)
+                predict = []
                 with tf.GradientTape() as tape:
                     tape.watch(self.w)
-#                     print(s)
-                    predict = self.f(s)
-         
-#                     logits = model(s, training=True)  # Logits for this minibatch
-         
-                    # Compute the loss value for this minibatch.
-                    loss_value = loss_fn(y_batch_train, predict)
-
-                    # Use the gradient tape to automatically retrieve
+                    
+                    predict = tf.map_fn(lambda x:self.f(x),x_batch_train,dtype = 'float32')
+#                     for s in x_batch_train:
+#     #                     print(s)
+#                         out = self.f(s)
+#                         
+#                         predict.append(out)
+             
+    #                     logits = model(s, training=True)  # Logits for this minibatch
+             
+                        # Compute the loss value for this minibatch.
+    
+                        # Use the gradient tape to automatically retrieve
                     # the gradients of the trainable variables with respect to the loss.
+                    
+#                     predict = tf.stack(predict)
+                    loss_value = loss_fn(y_batch_train, predict)
+                    
+                    
                     grads = tape.gradient(loss_value, self.w)
     
                     # Run one step of gradient descent by updating
                     # the value of the variables to minimize the loss.
                     optimizer.apply_gradients([(grads, self.w)])
 
-        # Log every 200 batches.
-        if step % 100 == 0:
-            print(
-                "Training loss (for one batch) at step %d: %.4f"
-                % (step, float(loss_value))
-            )
-            print("Seen so far: %s samples" % ((step + 1) * batch_size))
+            # Log every 10 epoches.
+            if epoch % 10 == 0:
+                print(
+                    "Training loss (for one batch) at step %d: %.4f"
+                    % (epoch, float(loss_value))
+                )
             
-    # Instantiate an optimizer.
-    optimizer = keras.optimizers.SGD(learning_rate=1e-3)
-    # Instantiate a loss function.
-    loss_fn = keras.losses.SparseCategoricalCrossentropy(from_logits=True)
         
-    def eval(self):
-        return
+    def eval(self, idx):
+        if self.f(idx) > 0.5: return 1
+        else: return 0
     
     def f(self, idx):
 
