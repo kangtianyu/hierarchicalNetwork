@@ -52,9 +52,12 @@ class HierarchicalNetwork:
                     # Run one step of gradient descent by updating
                     # the value of the variables to minimize the loss.
                     optimizer.apply_gradients([(grads, self.w)])
+                print(
+                    "."
+                )
 
             # Log every 10 epoches.
-            if epoch % 10 == 0:
+            if epoch % 1 == 0:
                 print(
                     "Training loss (for one batch) at step %d: %.4f"
                     % (epoch, float(loss_value))
